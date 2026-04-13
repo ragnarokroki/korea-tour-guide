@@ -1,21 +1,18 @@
 /* ═══════════════════════════════════════════
-   feature-badge-i18n.js
+   feature-badge-i18n.js  (버그수정: 다녀왔어요 중복 버튼)
    ⑩ 방문 인증 & 뱃지 시스템 (localStorage)
    ⑪ 다국어 전환 EN · JP · ZH
 ═══════════════════════════════════════════ */
 
 (function(){
 
-  /* ═══════════════════════════════════════
-     ⑩ 방문 인증 & 뱃지 시스템
-  ═══════════════════════════════════════ */
   const VISIT_KEY = 'jeju_visits';
   const BADGE_DEFS = [
-    { id:'first',   icon:'🎉', name:'첫 방문',       desc:'처음으로 장소를 방문했어요!',     cond:v=> v.size>=1 },
-    { id:'five',    icon:'⭐', name:'탐험가 5',       desc:'5곳을 방문했어요!',               cond:v=> v.size>=5 },
-    { id:'ten',     icon:'🏅', name:'탐험가 10',      desc:'10곳을 방문했어요!',              cond:v=> v.size>=10 },
-    { id:'twenty',  icon:'🥇', name:'제주 마니아',    desc:'20곳을 방문했어요!',              cond:v=> v.size>=20 },
-    { id:'fifty',   icon:'🏆', name:'제주 정복자',    desc:'50곳을 방문했어요!',              cond:v=> v.size>=50 },
+    { id:'first',   icon:'🎉', name:'첫 방문',      desc:'처음으로 장소를 방문했어요!',  cond:v=> v.size>=1 },
+    { id:'five',    icon:'⭐', name:'탐험가 5',      desc:'5곳을 방문했어요!',            cond:v=> v.size>=5 },
+    { id:'ten',     icon:'🏅', name:'탐험가 10',     desc:'10곳을 방문했어요!',           cond:v=> v.size>=10 },
+    { id:'twenty',  icon:'🥇', name:'제주 마니아',   desc:'20곳을 방문했어요!',           cond:v=> v.size>=20 },
+    { id:'fifty',   icon:'🏆', name:'제주 정복자',   desc:'50곳을 방문했어요!',           cond:v=> v.size>=50 },
     { id:'jeju_si', icon:'🔵', name:'제주시 마스터', desc:'제주시 10곳 이상 방문',
       cond:(v)=> countRegionVisit(v,'제주시')>=10 },
     { id:'south',   icon:'🔴', name:'남부 탐험가',   desc:'남부 10곳 이상 방문',
@@ -49,7 +46,6 @@
     return [...v].filter(no=>{const p=PLACES.find(x=>x.no===no);
       return p&&(p.name+p.desc).includes(kw);}).length;
   }
-
   function getEarnedBadges(v){
     return BADGE_DEFS.filter(b=> b.cond(v));
   }
@@ -75,8 +71,7 @@
     const prevStr = localStorage.getItem('jeju_badges_seen') || '[]';
     const seen = new Set(JSON.parse(prevStr));
     const earned = getEarnedBadges(v);
-    const newBadges = earned.filter(b=>!seen.has(b.id));
-    newBadges.forEach(b=>{
+    earned.filter(b=>!seen.has(b.id)).forEach(b=>{
       seen.add(b.id);
       setTimeout(()=> showBadgeToast(b), 500);
     });
@@ -107,19 +102,26 @@
   }
 
   function renderVisitBtn(no){
+    // ★ 버그 수정 핵심:
+    //   기존 코드는 getElementById(`visit-btn-${no}`)로 현재 no 버튼만 제거했음.
+    //   모달을 닫지 않고 다른 카드를 클릭하면 no가 바뀌어서
+    //   이전 장소의 버튼이 제거되지 않고 누적됨.
+    //   → querySelectorAll('.visit-btn')으로 모든 버튼을 한번에 제거해서 해결.
+    document.querySelectorAll('.visit-btn').forEach(b => b.remove());
+
     const v = getVisits();
     const visited = v.has(no);
-    const existing = document.getElementById(`visit-btn-${no}`);
-    if(existing) existing.remove();
 
     const btn = document.createElement('button');
     btn.id = `visit-btn-${no}`;
     btn.className = `visit-btn${visited?' visited':''}`;
     btn.textContent = visited ? '✅ 다녀왔어요' : '📍 다녀왔어요';
-    btn.setAttribute('aria-label', (visited?'방문 취소':'방문 인증'));
+    btn.setAttribute('aria-label', visited ? '방문 취소' : '방문 인증');
     btn.addEventListener('click', ()=> markVisit(no));
 
-    const actionBar = document.getElementById('m-fav-btn')?.parentElement;
+    // ★ getElementById('m-fav-btn')?.parentElement 대신
+    //    클래스명으로 직접 탐색 (더 안정적)
+    const actionBar = document.querySelector('.modal-action-bar');
     if(actionBar) actionBar.appendChild(btn);
   }
 
@@ -180,16 +182,12 @@
       hero_sub:'从旅游景点到文化设施，尽在济州岛。',
     },
   };
-  let currentLang = 'ko';
 
   function applyLang(lang){
     const t = I18N[lang];
     if(!t) return;
-    currentLang = lang;
-    // 검색창 placeholder
     const searchInput = document.getElementById('search');
     if(searchInput) searchInput.placeholder = t.search;
-    // 필터 버튼
     const allBtn = document.querySelector('.filter-btn[data-region="전체"]');
     if(allBtn) allBtn.textContent = t.all;
     const spotBtn = document.querySelector('.filter-btn[data-cat="관광지"]');
@@ -198,24 +196,19 @@
     if(cultureBtn) cultureBtn.textContent = t.cat_culture;
     const freeBtn = document.querySelector('.filter-btn[data-free]');
     if(freeBtn) freeBtn.textContent = t.free;
-    // 즐겨찾기 버튼
     const favBtn = document.getElementById('fav-toggle-btn');
     if(favBtn) favBtn.childNodes[0].textContent = t.fav + ' ';
-    // 히어로 서브
     const heroSub = document.querySelector('.hero-sub');
     if(heroSub) heroSub.textContent = t.hero_sub;
-    // 언어 버튼 상태
     document.querySelectorAll('.lang-btn').forEach(b=>{
       b.classList.toggle('lang-active', b.dataset.lang===lang);
     });
     localStorage.setItem('jeju_lang', lang);
   }
 
-  /* ─── DOM 주입 (공통) ────────────────── */
   function injectCSS(){
     const style = document.createElement('style');
     style.textContent = `
-      /* 방문 버튼 */
       .visit-btn{
         display:inline-flex;align-items:center;gap:6px;
         padding:8px 16px;border-radius:8px;
@@ -225,8 +218,6 @@
       }
       .visit-btn:hover{background:#e5e7eb;}
       .visit-btn.visited{background:#d1fae5;border-color:#6ee7b7;color:#065f46;}
-
-      /* 뱃지 토스트 */
       .badge-toast{
         position:fixed;top:80px;left:50%;transform:translateX(-50%) translateY(-80px);
         background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:16px;
@@ -238,8 +229,6 @@
       .badge-toast-icon{font-size:28px;}
       .badge-toast-name{font-size:13px;font-weight:700;}
       .badge-toast-desc{font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px;}
-
-      /* 뱃지 모달 */
       #badge-modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;
         display:none;align-items:center;justify-content:center;padding:20px;}
       #badge-modal.open{display:flex;}
@@ -262,9 +251,6 @@
         border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;
         color:#6b7280;transition:all .2s;white-space:nowrap;}
       #badge-btn:hover{border-color:#f59e0b;color:#92400e;}
-
-      /* 언어 전환 */
-      #lang-switcher{display:flex;gap:4px;align-items:center;}
       .lang-btn{padding:3px 8px;border-radius:6px;border:1.5px solid #e5e7eb;
         background:#fff;font-size:11px;font-weight:600;cursor:pointer;
         color:#6b7280;transition:all .15s;font-family:'DM Sans',sans-serif;}
@@ -277,7 +263,6 @@
   }
 
   function injectHTML(){
-    // 언어 전환 바
     const toolbar = document.querySelector('.toolbar');
     if(toolbar){
       const langArea = document.createElement('div');
@@ -295,7 +280,6 @@
       });
     }
 
-    // 뱃지 버튼 - 즐겨찾기 버튼 옆
     const favBtn = document.getElementById('fav-toggle-btn');
     if(favBtn){
       const btn = document.createElement('button');
@@ -306,7 +290,6 @@
       favBtn.after(btn);
     }
 
-    // 뱃지 모달
     const badgeModal = document.createElement('div');
     badgeModal.id = 'badge-modal';
     badgeModal.setAttribute('role','dialog');
@@ -328,7 +311,6 @@
       }
     });
 
-    // 히어로 통계에 방문 수 추가
     const heroStats = document.querySelector('.hero-stats');
     if(heroStats){
       const v = getVisits();
@@ -339,7 +321,6 @@
     }
   }
 
-  /* openModal 패치 - 방문 버튼 추가 */
   function patchOpenModal(){
     const orig = window.openModal;
     window.openModal = function(no){
@@ -352,10 +333,8 @@
     injectCSS();
     injectHTML();
     patchOpenModal();
-    // 저장된 언어 복원
     const savedLang = localStorage.getItem('jeju_lang');
     if(savedLang && LANGS[savedLang] && savedLang!=='ko') applyLang(savedLang);
-    // 브라우저 언어 자동 감지
     else {
       const browserLang = navigator.language.toLowerCase();
       if(browserLang.startsWith('ja')) applyLang('ja');
